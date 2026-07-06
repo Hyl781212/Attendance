@@ -1,0 +1,607 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>科室上班考勤表</title>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <style>
+        * {
+            box-sizing: border-box;
+            font-family: "Microsoft Yahei", sans-serif;
+        }
+        body {
+            padding: 20px;
+            max-width: 1400px;
+            margin: 0 auto;
+            background: #f5f7fa;
+        }
+        .block {
+            background: #fff;
+            padding: 20px;
+            margin-bottom: 24px;
+            border-radius: 8px;
+            box-shadow: 0 1px 4px #ddd;
+        }
+        .block-header {
+            display: flex;
+            align-items: center;
+            gap:12px;
+            margin-bottom: 15px;
+        }
+        .block h3 {
+            margin: 0;
+            color: #2d3748;
+            border-left: 4px solid #2b7de9;
+            padding-left: 12px;
+            font-size: 20px;
+            flex-grow:1;
+        }
+        label {
+            display: inline-block;
+            margin-right: 8px;
+            font-weight: 500;
+            font-size: 14px;
+            white-space: nowrap;
+        }
+        input, select {
+            padding: 8px 10px;
+            border: 1px solid #cbd5e0;
+            border-radius: 4px;
+            font-size: 14px;
+            outline: none;
+        }
+        input:focus, select:focus {
+            border-color: #2b7de9;
+            box-shadow: 0 0 0 2px rgba(43, 125, 233, 0.1);
+        }
+        .staff-input {
+            width: 450px;
+            max-width: 30ch;
+        }
+        .day-input {
+            width: 120px;
+            max-width: 10ch;
+        }
+        .date-input {
+            width: 150px;
+        }
+        .remark-input {
+            width: 200px;
+        }
+        .input-row {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin: 12px 0;
+            flex-wrap: wrap;
+            padding: 15px;
+            border-radius: 6px;
+            background: #fafbfc;
+        }
+        /* 通用表格样式 */
+        .common-table {
+            width: 100%;
+            border-collapse: collapse;
+            border-radius: 6px;
+            overflow: hidden;
+            margin-bottom: 12px;
+        }
+        .common-table thead tr {
+            background-color: #2b7de9;
+            color: #fff;
+        }
+        .common-table th,
+        .common-table td {
+            padding: 12px 15px;
+            text-align: center;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        .common-table th {
+            font-weight: 600;
+            font-size: 14px;
+        }
+        .common-table tbody tr {
+            transition: background-color 0.2s;
+        }
+        .common-table tbody tr:hover {
+            background-color: #f8f9fa;
+        }
+        .empty-row td {
+            text-align: center;
+            color: #9ca3af;
+            padding: 30px 15px;
+        }
+        /* 考勤分组容器 */
+        .group-wrap {
+            margin-bottom: 20px;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            padding: 12px;
+        }
+        .group-title {
+            font-size: 18px;
+            font-weight: bold;
+            margin: 0 0 10px 0;
+            color: #2d3748;
+        }
+        /* 剩余假期高亮 */
+        .remain-cell {
+            font-weight: bold;
+            font-size: 20px;
+            color: #2b7de9;
+        }
+        button {
+            padding: 8px 16px;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+        }
+        .save-btn {
+            background: #22a75d;
+        }
+        .save-btn:hover {
+            background: #1c8f4e;
+        }
+        .cancel-btn {
+            background: #6b7280;
+        }
+        .cancel-btn:hover {
+            background: #4b5563;
+        }
+        .export-btn {
+            background: #ed8936;
+        }
+        .export-btn:hover {
+            background: #dd6b20;
+        }
+        .import-btn {
+            background: #9333ea;
+        }
+        .import-btn:hover {
+            background: #7e22ce;
+        }
+        .clear-all-btn {
+            background: #dc2626;
+        }
+        .clear-all-btn:hover {
+            background: #b91c1c;
+        }
+        .edit-btn {
+            background: #4299e1;
+            padding: 6px 12px;
+            font-size: 13px;
+            margin-right: 6px;
+        }
+        .edit-btn:hover {
+            background: #3182ce;
+        }
+        .del-btn {
+            background: #e53e3e;
+            padding: 6px 12px;
+            font-size: 13px;
+        }
+        .del-btn:hover {
+            background: #c53030;
+        }
+        .tip-text {
+            margin-top: 10px;
+            color: #666;
+            font-size: 13px;
+        }
+        .editing {
+            border: 2px solid #4299e1 !important;
+            background: #ebf8ff !important;
+        }
+        /* 隐藏文件输入 */
+        #fileInput {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <h2 style="text-align: center; color: #2d3748; margin-bottom: 30px;">科室考勤登记表</h2>
+
+    <!-- 第一部分：科室人员录入 -->
+    <div class="block">
+        <h3>一、科室人员录入</h3>
+        <label>科室工作人员（多姓名用逗号分隔，支持中文/英文逗号）：</label>
+        <input type="text" id="staffText" class="staff-input" maxlength="30" placeholder="燕琳,春春,小吴,易姐,杨老师,熊熊">
+        <div class="tip-text">限制30字符，输入完成后自动同步到下方录入区的姓名下拉框</div>
+    </div>
+
+    <!-- 第二部分：单条考勤信息录入区 -->
+    <div class="block">
+        <h3>二、单条考勤信息录入</h3>
+        <div class="input-row" id="inputRow">
+            <label>姓名：</label>
+            <select id="nameSelect" class="name-select">
+                <option value="">请选择姓名</option>
+            </select>
+            <label>工作状态：</label>
+            <select id="typeSelect" class="type-select">
+                <option value="">请选择工作状态</option>
+                <option value="加班">加班</option>
+                <option value="请假">请假</option>
+                <option value="补休">补休</option>
+                <option value="工休假">工休假</option>
+                <option value="补工休">补工休</option>
+            </select>
+            <label>开始日期：</label>
+            <input type="date" id="dateInput" class="date-input">
+            <label>天数：</label>
+            <input type="number" id="dayInput" class="day-input" maxlength="10" min="0" placeholder="0">
+            <label>备注：</label>
+            <input type="text" id="remarkInput" class="remark-input" placeholder="备注">
+            <button id="saveBtn" class="save-btn">保存本条考勤</button>
+            <button id="cancelBtn" class="cancel-btn" style="display:none;">取消编辑</button>
+        </div>
+    </div>
+
+    <!-- 第三部分：考勤天数统计 -->
+    <div class="block">
+        <h3>三、考勤天数统计</h3>
+        <table class="common-table" id="statTable">
+            <thead>
+                <tr>
+                    <th>姓名</th>
+                    <th>加班天数</th>
+                    <th>工休假天数</th>
+                    <th>加班+工休假合计</th>
+                    <th>补休天数</th>
+                    <th>补工休天数</th>
+                    <th>请假天数</th>
+                    <th>扣除合计</th>
+                    <th>剩余假期</th>
+                </tr>
+            </thead>
+            <tbody id="statTbody">
+                <tr class="empty-row">
+                    <td colspan="9">暂无考勤明细记录</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- 第四部分：考勤记录（导入/导出/清除全部按钮） -->
+    <div class="block">
+        <div class="block-header">
+            <h3>四、考勤记录</h3>
+            <input type="file" id="fileInput" accept=".xlsx,.xls"/>
+            <button id="importBtn" class="import-btn">导入Excel</button>
+            <button id="exportBtn" class="export-btn">导出Excel文件</button>
+            <button id="clearAllBtn" class="clear-all-btn">清除全部内容</button>
+        </div>
+        <div id="recordWrap">
+            <div class="empty-row">暂无已录入的考勤记录</div>
+        </div>
+    </div>
+
+    <script>
+        // 全局变量
+        const staffTextDom = document.getElementById('staffText');
+        const nameSelectDom = document.getElementById('nameSelect');
+        const typeSelectDom = document.getElementById('typeSelect');
+        const dateInputDom = document.getElementById('dateInput');
+        const dayInputDom = document.getElementById('dayInput');
+        const remarkInputDom = document.getElementById('remarkInput');
+        const saveBtnDom = document.getElementById('saveBtn');
+        const cancelBtnDom = document.getElementById('cancelBtn');
+        const exportBtnDom = document.getElementById('exportBtn');
+        const importBtnDom = document.getElementById('importBtn');
+        const clearAllBtnDom = document.getElementById('clearAllBtn');
+        const fileInputDom = document.getElementById('fileInput');
+        const recordWrapDom = document.getElementById('recordWrap');
+        const statTbodyDom = document.getElementById('statTbody');
+        const inputRowDom = document.getElementById('inputRow');
+
+        // 读取本地存储，防止刷新丢失数据
+        let recordList = JSON.parse(localStorage.getItem('kaoqinData')) || [];
+        let currentEditIndex = -1;
+
+        // 文本清洗：清除所有隐形空白字符，解决工休假匹配失败
+        function cleanText(str) {
+            if (!str) return '';
+            let s = String(str);
+            s = s.replace(/[\x00-\x1F]/g, '');
+            s = s.replace(/\u00A0/g, '');
+            s = s.replace(/\u3000/g, '');
+            s = s.replace(/ /g, '');
+            return s;
+        }
+
+        // 保存数据到本地存储
+        function saveLocalData() {
+            localStorage.setItem('kaoqinData', JSON.stringify(recordList));
+        }
+
+        // 一键清除全部考勤记录
+        function clearAllRecords() {
+            const confirmDel = confirm('确定要清除所有考勤记录吗？此操作无法恢复！');
+            if (!confirmDel) return;
+            recordList = [];
+            saveLocalData();
+            renderGroupRecord();
+            calcStat();
+            alert('已清空全部考勤数据！');
+        }
+
+        function getStaffArr(){
+            const val = staffTextDom.value.trim();
+            if(!val) return [];
+            return val.split(/[，,]/).map(s=>s.trim()).filter(s=>s);
+        }
+
+        function refreshNameSelect(){
+            const staffArr = getStaffArr();
+            nameSelectDom.innerHTML = '<option value="">请选择姓名</option>';
+            staffArr.forEach(name=>{
+                const opt = document.createElement('option');
+                opt.innerText = name;
+                opt.value = name;
+                nameSelectDom.appendChild(opt);
+            })
+            calcStat();
+            renderGroupRecord();
+        }
+
+        function clearInputForm(){
+            nameSelectDom.value = '';
+            typeSelectDom.value = '';
+            dateInputDom.value = '';
+            dayInputDom.value = '';
+            remarkInputDom.value = '';
+            currentEditIndex = -1;
+            saveBtnDom.innerText = '保存本条考勤';
+            cancelBtnDom.style.display = 'none';
+            inputRowDom.classList.remove('editing');
+        }
+
+        // 按姓名分组渲染考勤表格
+        function renderGroupRecord(){
+            if(recordList.length === 0){
+                recordWrapDom.innerHTML = '<div class="empty-row">暂无已录入的考勤记录</div>';
+                return;
+            }
+            const groupMap = {};
+            recordList.forEach((item, idx)=>{
+                if(!groupMap[item.name]) groupMap[item.name] = [];
+                groupMap[item.name].push({...item, index: idx});
+            })
+            let html = '';
+            Object.keys(groupMap).forEach(name=>{
+                const list = groupMap[name];
+                html += `<div class="group-wrap">
+                    <div class="group-title">${name}</div>
+                    <table class="common-table">
+                        <thead>
+                            <tr>
+                                <th>工作状态</th>
+                                <th>开始日期</th>
+                                <th>天数</th>
+                                <th>备注</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody>`;
+                list.forEach(row=>{
+                    html += `
+                    <tr>
+                        <td>${row.type}</td>
+                        <td>${row.date}</td>
+                        <td>${row.day}d</td>
+                        <td>${row.remark || '无'}</td>
+                        <td>
+                            <button class="edit-btn" data-index="${row.index}">编辑</button>
+                            <button class="del-btn" data-index="${row.index}">删除</button>
+                        </td>
+                    </tr>`;
+                })
+                html += `</tbody></table></div>`;
+            })
+            recordWrapDom.innerHTML = html;
+
+            // 绑定编辑删除按钮
+            document.querySelectorAll('.edit-btn').forEach(btn=>{
+                btn.onclick = (e)=>{
+                    const idx = Number(e.target.dataset.index);
+                    const r = recordList[idx];
+                    nameSelectDom.value = r.name;
+                    typeSelectDom.value = r.type;
+                    dateInputDom.value = r.date;
+                    dayInputDom.value = r.day;
+                    remarkInputDom.value = r.remark;
+                    currentEditIndex = idx;
+                    saveBtnDom.innerText = '更新本条考勤';
+                    cancelBtnDom.style.display = 'inline-block';
+                    inputRowDom.classList.add('editing');
+                    inputRowDom.scrollIntoView({behavior:'smooth'});
+                }
+            })
+            document.querySelectorAll('.del-btn').forEach(btn=>{
+                btn.onclick = (e)=>{
+                    const idx = Number(e.target.dataset.index);
+                    if(idx === currentEditIndex) clearInputForm();
+                    recordList.splice(idx,1);
+                    saveLocalData();
+                    renderGroupRecord();
+                    calcStat();
+                }
+            })
+        }
+
+        // 统计汇总（自动读取所有记录姓名，清洗工作状态匹配工休假）
+        function calcStat(){
+            if(recordList.length === 0){
+                statTbodyDom.innerHTML = '<tr class="empty-row"><td colspan="9">暂无考勤明细记录</td></tr>';
+                return;
+            }
+            const allNames = new Set();
+            recordList.forEach(item => allNames.add(item.name));
+            const staffMap = {};
+            allNames.forEach(name=>{
+                staffMap[name] = {
+                    overtime:0, workVac:0, rest:0, restWorkVac:0, leave:0
+                };
+            })
+            recordList.forEach(record=>{
+                const name = record.name;
+                const cleanType = cleanText(record.type);
+                const d = Number(record.day)||0;
+                if(cleanType === '加班') staffMap[name].overtime +=d;
+                if(cleanType === '工休假') staffMap[name].workVac +=d;
+                if(cleanType === '补休') staffMap[name].rest +=d;
+                if(cleanType === '补工休') staffMap[name].restWorkVac +=d;
+                if(cleanType === '请假') staffMap[name].leave +=d;
+            })
+            let html = '';
+            Object.keys(staffMap).forEach(name=>{
+                const data = staffMap[name];
+                const addTotal = data.overtime + data.workVac;
+                const subTotal = data.rest + data.restWorkVac + data.leave;
+                const remain = addTotal - subTotal;
+                html += `
+                <tr>
+                    <td>${name}</td>
+                    <td>${data.overtime}</td>
+                    <td>${data.workVac}</td>
+                    <td>+${addTotal}</td>
+                    <td>${data.rest}</td>
+                    <td>${data.restWorkVac}</td>
+                    <td>${data.leave}</td>
+                    <td>-${subTotal}</td>
+                    <td class="remain-cell">${remain}</td>
+                </tr>
+                `;
+            })
+            statTbodyDom.innerHTML = html;
+        }
+
+        // 【修复导出空白问题】正确使用aoa_to_sheet生成工作表
+        function exportToExcel(){
+            if(recordList.length === 0){
+                alert('暂无考勤记录，无法导出！');
+                return;
+            }
+            // 构造二维数组
+            const exportData = [
+                ['姓名', '工作状态', '开始日期', '天数', '备注'],
+                ...recordList.map(r=>[r.name, r.type, r.date, r.day, r.remark||''])
+            ];
+            // 正确生成sheet
+            const wb = XLSX.utils.book_new();
+            const ws = XLSX.utils.aoa_to_sheet(exportData);
+            // 设置列宽优化显示
+            ws['!cols'] = [
+                {wch:10},
+                {wch:10},
+                {wch:12},
+                {wch:6},
+                {wch:25}
+            ];
+            XLSX.utils.book_append_sheet(wb, ws, '考勤记录');
+            XLSX.writeFile(wb, `科室考勤记录_${new Date().toLocaleDateString()}.xlsx`);
+            alert('导出成功！文件包含全部考勤数据');
+        }
+
+        // 导入Excel
+        function importExcel(file){
+            const reader = new FileReader();
+            reader.onload = function(e){
+                const data = new Uint8Array(e.target.result);
+                const workbook = XLSX.read(data, {type:'array'});
+                const sheet = workbook.Sheets[workbook.SheetNames[0]];
+                const jsonData = XLSX.utils.sheet_to_json(sheet, {header:1});
+                if(jsonData.length <= 1){
+                    alert('Excel无有效数据！');
+                    return;
+                }
+                const header = jsonData[0];
+                const targetHeader = ['姓名','工作状态','开始日期','天数','备注'];
+                let validHeader = true;
+                for(let i=0;i<5;i++){
+                    if(cleanText(String(header[i])) !== cleanText(targetHeader[i])){
+                        validHeader = false;
+                        break;
+                    }
+                }
+                if(!validHeader){
+                    alert('Excel表头不匹配！必须为：姓名,工作状态,开始日期,天数,备注');
+                    return;
+                }
+                let importCount = 0;
+                for(let i=1;i<jsonData.length;i++){
+                    const row = jsonData[i];
+                    const name = String(row[0]||'').trim();
+                    const type = String(row[1]||'');
+                    const date = String(row[2]||'').trim();
+                    const day = Number(row[3]) || 0;
+                    const remark = String(row[4]||'').trim();
+                    if(name && type && date && day > 0){
+                        recordList.push({name, type, date, day, remark});
+                        importCount++;
+                    }
+                }
+                saveLocalData();
+                renderGroupRecord();
+                calcStat();
+                alert(`导入完成，共读取${importCount}条有效考勤记录！`);
+            }
+            reader.readAsArrayBuffer(file);
+        }
+
+        // 单条保存/更新
+        saveBtnDom.onclick = ()=>{
+            const name = nameSelectDom.value.trim();
+            const type = typeSelectDom.value;
+            const date = dateInputDom.value.trim();
+            const day = dayInputDom.value.trim();
+            const remark = remarkInputDom.value.trim();
+
+            if(!name){alert('请选择姓名');nameSelectDom.focus();return;}
+            if(!type){alert('请选择工作状态');typeSelectDom.focus();return;}
+            if(!day || Number(day)<=0){alert('请输入有效天数');dayInputDom.focus();return;}
+
+            const newRec = {name, type, date, day:Number(day), remark};
+            if(currentEditIndex === -1){
+                recordList.push(newRec);
+                alert('保存成功，可继续录入');
+            }else{
+                recordList[currentEditIndex] = newRec;
+                alert('更新成功');
+            }
+            saveLocalData();
+            clearInputForm();
+            renderGroupRecord();
+            calcStat();
+        }
+
+        cancelBtnDom.onclick = ()=>{
+            clearInputForm();
+            alert('已取消编辑');
+        }
+        exportBtnDom.onclick = exportToExcel;
+        importBtnDom.onclick = ()=>{
+            fileInputDom.click();
+        }
+        fileInputDom.onchange = (e)=>{
+            const file = e.target.files[0];
+            if(!file) return;
+            importExcel(file);
+            fileInputDom.value = '';
+        }
+        clearAllBtnDom.onclick = clearAllRecords;
+        staffTextDom.oninput = ()=>{
+            refreshNameSelect();
+            renderGroupRecord();
+        };
+        window.onload = ()=>{
+            refreshNameSelect();
+            renderGroupRecord();
+        }
+    </script>
+</body>
+</html>
